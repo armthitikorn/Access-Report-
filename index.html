@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Access Usage Report | E-Simulator</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap');
+        
+        body { 
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f4f7f6;
+            min-height: 100vh;
+            margin: 0;
+            padding: 30px;
+        }
+        .container-box {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        h1 { 
+            font-size: 30px;
+            color: #1e88e5; 
+            margin-bottom: 20px;
+            font-weight: 700;
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+            font-size: 16px;
+        }
+        th {
+            background-color: #1e88e5;
+            color: white;
+            font-weight: 700;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #e6f7ff;
+        }
+        #loading, #forbidden, #statusMessage {
+            text-align: center;
+            padding: 50px;
+            font-size: 20px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-box">
+    <h1>📊 รายงานสรุปการเข้าใช้งานระบบ</h1>
+    
+    <div id="statusMessage" style="display: none;"></div>
+    
+    <div id="reportSection" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>ชื่อผู้ใช้ (อีเมล)</th>
+                    <th>จำนวนครั้งที่เข้าใช้งาน</th>
+                </tr>
+            </thead>
+            <tbody id="reportBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="loading" style="display: block;">
+    กำลังตรวจสอบสิทธิ์และดึงข้อมูลรายงาน...
+</div>
+<div id="forbidden" style="display: none;">
+    ⚠️ คุณไม่ได้รับอนุญาตให้เข้าถึงหน้านี้ กรุณา <a href="login.html">เข้าสู่ระบบ</a> ก่อน
+</div>
+
+<script>
+    // ⚠️ สำคัญ: ใช้ค่า Supabase ที่คุณให้มา
+    const SUPABASE_URL = 'https://wzwyotzzxycqfwercakh.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6d3lvdHp6eHljcWZ3ZXJjYWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwNTg3MTMsImV4cCI6MjA3MjYzNDcxM30.lgiAf9oBUqsaWGb3u_80wuoKAODQHE_lIBxpGumhrno'; 
+    
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const loadingEl = document.getElementById('loading');
+    const forbiddenEl = document.getElementById('forbidden');
+    const reportSectionEl = document.getElementById('reportSection');
+    const reportBodyEl = document.getElementById('reportBody');
+    const statusMessageEl = document.getElementById('statusMessage');
+
+
+    /**
+     * 1. ดึงและสร้างรายงานสรุป
+     */
+    async function generateUsageReport() {
+        // 1.1 ดึงข้อมูลทั้งหมดจากตาราง access_log
+        const { data: logData, error } = await supabase
+            .from('access_log')
+            .select('user_email'); // ดึงมาเฉพาะอีเมลที่ใช้ล็อกอิน
+
+        loadingEl.style.display = 'none';
+
+        if (error) {
+            console.error("Error fetching access log:", error);
+            statusMessageEl.textContent = `🚫 ข้อผิดพลาดในการดึงข้อมูล: ${error.message}`;
+            statusMessageEl.style.display = 'block';
+            return;
+        }
+        
+        if (logData.length === 0) {
+            statusMessageEl.textContent = "ยังไม่มีข้อมูลการเข้าใช้งานในระบบ";
+            statusMessageEl.style.display = 'block';
+            return;
+        }
+
+        // 1.2 สรุปผลการเข้าใช้งาน (Grouping and Counting)
+        const usageSummary = logData.reduce((summary, item) => {
+            const email = item.user_email;
+            summary[email] = (summary[email] || 0) + 1;
+            return summary;
+        }, {});
+
+        // 1.3 จัดรูปแบบสำหรับแสดงผล (เรียงลำดับจากมากไปน้อย)
+        const sortedSummary = Object.entries(usageSummary)
+            .sort(([, countA], [, countB]) => countB - countA);
+
+        // 1.4 แสดงผลในตาราง HTML
+        reportBodyEl.innerHTML = ''; // ล้างข้อมูลเดิม
+        
+        sortedSummary.forEach(([email, count]) => {
+            const row = reportBodyEl.insertRow();
+            const emailCell = row.insertCell();
+            const countCell = row.insertCell();
+            
+            emailCell.textContent = email;
+            countCell.textContent = count;
+            countCell.style.fontWeight = 'bold'; // เน้นจำนวนครั้ง
+            countCell.style.textAlign = 'center';
+        });
+        
+        reportSectionEl.style.display = 'block';
+    }
+
+
+    /**
+     * 2. ตรวจสอบสถานะการเข้าสู่ระบบ
+     */
+    async function checkAuthAndLoadReport() {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+            loadingEl.style.display = 'none';
+            forbiddenEl.style.display = 'block';
+            return;
+        }
+        
+        // ถ้าล็อกอินแล้ว: ดึงรายงาน
+        generateUsageReport();
+    }
+
+    // เริ่มต้นการตรวจสอบเมื่อหน้าโหลดเสร็จ
+    document.addEventListener('DOMContentLoaded', checkAuthAndLoadReport);
+</script>
+
+</body>
+</html>
