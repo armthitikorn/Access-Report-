@@ -3,9 +3,10 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
-    <title>Dashboard: Roleplay Submissions Analysis (Multi-Product)</title>
+    <title>Dashboard: ผลการจำลอง Roleplay (พร้อมระบบ Feedback และ Report)</title>
     
     <script type="module" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <style>
         /* 1. Base Styles */
@@ -46,20 +47,42 @@
             border-radius: 8px;
             background-color: #f8f8f8;
             display: flex;
-            align-items: center;
+            flex-wrap: wrap;
             gap: 15px;
+            align-items: center;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .filter-control label {
             font-weight: bold;
             color: #555;
+            min-width: 70px;
         }
-        .filter-control select {
+        .filter-control select, .filter-control input {
             padding: 8px 12px;
             border-radius: 4px;
             border: 1px solid #ccc;
             font-size: 16px;
-            min-width: 200px;
+            min-width: 150px;
         }
+        .apply-btn {
+            padding: 8px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .apply-btn:hover { background-color: #218838; }
+        #exportReportBtn {
+            background-color: #007bff;
+            margin-left: auto; /* Push to the right */
+        }
+        #exportReportBtn:hover { background-color: #0056b3; }
 
         /* 3. User List (Sidebar Style) */
         #userList {
@@ -109,82 +132,96 @@
             border-radius: 8px;
             background-color: #fff;
         }
-        .turn-header {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-bottom: 10px;
+        
+        /* 5. Feedback Form (New) */
+        #feedbackSection {
+            background-color: #f7f7f7;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border: 1px solid #ccc;
+        }
+        #feedbackSection h3 {
             color: #d9534f;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
         }
-        .audio-pair {
-            display: flex;
-            gap: 20px;
-            margin-top: 10px;
-        }
-        .audio-block {
-            flex: 1;
-            padding: 10px;
-            border: 1px dashed #ccc;
-            border-radius: 6px;
-        }
-        .audio-block label {
+        #feedbackForm label {
             display: block;
+            margin-top: 10px;
             font-weight: bold;
-            margin-bottom: 5px;
-            font-size: 0.9em;
         }
-        .customer-audio { border-color: #5cb85c; background-color: #f0fff0; }
-        .employee-audio { border-color: #337ab7; background-color: #f5faff; }
+        #feedbackForm input[type="text"], #feedbackForm textarea {
+            width: 98%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        #saveFeedbackBtn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        #saveFeedbackBtn:hover { background-color: #0056b3; }
 
-        /* 5. Layout (Flexbox) */
+        /* 6. Layout (Flexbox) */
         .dashboard-layout {
             display: flex;
             gap: 20px;
         }
         .col-3 { flex: 0 0 300px; } /* User List fixed width */
         .col-9 { flex: 1; } 
-
-        /* 6. Utility */
-        .text-center { text-align: center; }
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 4px;
-        }
-        .alert-info {
-            color: #0c5460;
-            background-color: #d1ecf1;
-            border-color: #bee5eb;
-        }
-        .alert-warning {
-            color: #856404;
-            background-color: #fff3cd;
-            border-color: #ffeeba;
-        }
-        .mt-3 { margin-top: 1rem; }
-
-        /* Custom Audio Player Style */
-        .audio-player {
-            width: 100%;
-            height: 30px;
-            background: #e0e0e0;
-            border-radius: 5px;
-        }
     </style>
 </head>
 <body>
     
     <div class="container-box">
-        <h1>Dashboard: ผลการจำลอง Roleplay (Multi-Product)</h1>
+        <h1>Dashboard: ผลการจำลอง Roleplay (พร้อมระบบ Feedback และ Report)</h1>
         
         <div class="filter-control">
-            <label for="insuranceFilter">กรองตามประเภทประกัน:</label>
-            <select id="insuranceFilter">
-                <option value="All">--- แสดงทั้งหมด ---</option>
-                <option value="Health">ประกันสุขภาพ</option>
-                <option value="Life">ประกันชีวิต</option>
-                <option value="Retirement">ประกันบำนาญ (Retirement)</option>
-            </select>
+            <div class="filter-group">
+                <label for="traineeNameFilter">ชื่อพนักงาน:</label>
+                <input type="text" id="traineeNameFilter" placeholder="ค้นหาชื่อ...">
+            </div>
+
+            <div class="filter-group">
+                <label for="trainerNameFilter">ชื่อเทรนเนอร์:</label>
+                <input type="text" id="trainerNameFilter" placeholder="ค้นหาเทรนเนอร์...">
+            </div>
+
+            <div class="filter-group">
+                <label for="insuranceFilter">แบบประกัน:</label>
+                <select id="insuranceFilter">
+                    <option value="All">ทั้งหมด</option>
+                    <option value="Health">ประกันสุขภาพ</option>
+                    <option value="Life">ประกันชีวิต</option>
+                    <option value="Retirement">ประกันบำนาญ</option> 
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="groupFilter">กลุ่ม:</label>
+                <input type="text" id="groupFilter" placeholder="ค้นหากลุ่ม...">
+            </div>
+            
+            <div class="filter-group">
+                <label for="startDateFilter">วันที่เริ่มต้น:</label>
+                <input type="date" id="startDateFilter">
+            </div>
+            <div class="filter-group">
+                <label for="endDateFilter">วันที่สิ้นสุด:</label>
+                <input type="date" id="endDateFilter">
+            </div>
+
+            <button class="apply-btn" id="applyFilterBtn">🔍 กรองข้อมูล</button>
+            <button class="apply-btn" id="exportReportBtn">💾 ดาวน์โหลด Report (.csv)</button>
         </div>
 
         <div class="dashboard-layout">
@@ -200,11 +237,33 @@
             
             <div class="col-9">
                 <h2 id="sessionHeader">🎯 รายละเอียด Turn การโต้ตอบ</h2>
+
+                <div id="feedbackSection" style="display: none;">
+                    <h3>📝 การประเมินผลโดยเทรนเนอร์</h3>
+                    <form id="feedbackForm">
+                        <input type="hidden" id="feedbackUserId">
+                        <label for="trainerNameInput">1. ชื่อเทรนเนอร์ผู้ประเมิน:</label>
+                        <input type="text" id="trainerNameInput" required>
+
+                        <label for="overallScoreInput">2. คะแนน/ผลการประเมิน (สรุป):</label>
+                        <input type="text" id="overallScoreInput" placeholder="เช่น 90/100, ผ่าน/ไม่ผ่านเกณฑ์">
+                        
+                        <label for="passCriteriaInput">3. เกณฑ์การผ่านแต่ละช่วง/คะแนนแต่ละ Part:</label>
+                        <textarea id="passCriteriaInput" rows="3" placeholder="ระบุคะแนนย่อยของแต่ละช่วง (เช่น S1: 5/5, S2: 8/10)"></textarea>
+
+                        <label for="trainerCommentsInput">4. ความคิดเห็นของเทรนเนอร์ (Feedback):</label>
+                        <textarea id="trainerCommentsInput" rows="4" required></textarea>
+
+                        <button type="submit" id="saveFeedbackBtn">✅ บันทึกการประเมิน</button>
+                    </form>
+                    <p id="feedbackStatus" class="mt-3 alert alert-info" style="display:none;"></p>
+                </div>
+                
                 <div id="sessionDetails">
                     <p class="alert alert-info text-center">
-                        กรุณาเลือกประเภทประกันและชื่อผู้ทำแบบทดสอบจากรายการด้านซ้ายมือเพื่อแสดงรายละเอียดบทสนทนา
+                        กรุณาเลือกชื่อผู้ทำแบบทดสอบจากรายการด้านซ้ายมือเพื่อแสดงรายละเอียดบทสนทนา
                     </p>
-                    </div>
+                </div>
             </div>
             
         </div>
@@ -223,38 +282,51 @@
         const sessionDetailsElement = document.getElementById('sessionDetails');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const insuranceFilter = document.getElementById('insuranceFilter');
+        const traineeNameFilter = document.getElementById('traineeNameFilter');
+        const trainerNameFilter = document.getElementById('trainerNameFilter');
+        const groupFilter = document.getElementById('groupFilter');
+        const startDateFilter = document.getElementById('startDateFilter');
+        const endDateFilter = document.getElementById('endDateFilter');
+        const applyFilterBtn = document.getElementById('applyFilterBtn');
+        const exportReportBtn = document.getElementById('exportReportBtn');
+        const feedbackSection = document.getElementById('feedbackSection');
+        const feedbackForm = document.getElementById('feedbackForm');
+        const feedbackUserId = document.getElementById('feedbackUserId');
+        const trainerNameInput = document.getElementById('trainerNameInput');
+        const overallScoreInput = document.getElementById('overallScoreInput');
+        const passCriteriaInput = document.getElementById('passCriteriaInput');
+        const trainerCommentsInput = document.getElementById('trainerCommentsInput');
+        const feedbackStatus = document.getElementById('feedbackStatus');
+        
+        let allUsersData = []; // Store full data for filtering/export
 
         // --- 2. Data Fetching Functions ---
 
-        /**
-         * Fetch all unique users and their latest submission data based on filter.
-         */
         async function fetchUsers() {
             loadingIndicator.style.display = 'block';
             userListElement.innerHTML = '';
             
-            const filterValue = insuranceFilter.value;
-
-            let query = supabase
+            // 1. Fetch all submissions (required for basic user info)
+            const { data: allSubmissions, error: subError } = await supabase
                 .from('submissions')
-                // ดึงข้อมูลประเภทประกันมาใช้ด้วย
                 .select('user_id, name, user_group, created_at, insurance_type'); 
 
-            // **NEW: Filtering Logic**
-            if (filterValue && filterValue !== 'All') {
-                query = query.eq('insurance_type', filterValue);
-            }
-            // ------------------------
-
-            const { data: allSubmissions, error } = await query;
-
-            if (error) {
-                console.error("Error fetching submissions:", error);
-                loadingIndicator.textContent = `❌ ข้อผิดพลาดในการโหลดข้อมูล: ${error.message}`;
+            // 2. Fetch all trainer feedback (required for filtering by trainer name)
+            const { data: allFeedback, error: fbError } = await supabase
+                .from('trainer_feedback') // ต้องสร้างตารางนี้ใน Supabase
+                .select('*');
+            
+            if (subError || fbError) {
+                console.error("Error fetching data:", subError || fbError);
+                loadingIndicator.textContent = `❌ ข้อผิดพลาดในการโหลดข้อมูล: โปรดตรวจสอบว่าคุณสร้างตาราง 'trainer_feedback' แล้ว (${subError?.message || fbError?.message})`;
                 return;
             }
 
-            // 2. Group submissions by user_id and find the latest submission time
+            // Map feedback by user_id
+            const feedbackMap = new Map();
+            allFeedback.forEach(fb => feedbackMap.set(fb.user_id, fb));
+
+            // Group submissions by user_id and merge with feedback
             const usersMap = {};
             allSubmissions.forEach(submission => {
                 const { user_id, name, user_group, created_at, insurance_type } = submission;
@@ -265,24 +337,62 @@
                         name: name || 'Anon User',
                         user_group: user_group || 'N/A',
                         latest_submission: created_at,
-                        insurance_type: insurance_type || 'Unknown' // NEW: Store insurance type
+                        insurance_type: insurance_type || 'Unknown',
+                        feedback: feedbackMap.get(user_id) || null // Merge feedback
                     };
                 }
             });
 
-            const users = Object.values(usersMap).sort((a, b) => new Date(b.latest_submission) - new Date(a.latest_submission));
+            allUsersData = Object.values(usersMap).sort((a, b) => new Date(b.latest_submission) - new Date(a.latest_submission));
             
+            // Apply current filters
+            renderUserList(applyFilters(allUsersData));
             loadingIndicator.style.display = 'none';
-            renderUserList(users);
         }
 
-        /**
-         * Fetch all turns for a specific user ID, sorted by part and question number.
-         */
-        async function fetchTurns(userId, userName, userGroup) {
-            document.getElementById('sessionHeader').textContent = `🎯 รายละเอียดบทสนทนา: ${userName} (${userGroup})`;
+        function applyFilters(users) {
+            const traineeName = traineeNameFilter.value.toLowerCase();
+            const trainerName = trainerNameFilter.value.toLowerCase();
+            const insuranceType = insuranceFilter.value;
+            const group = groupFilter.value.toLowerCase();
+            const startDate = startDateFilter.value ? new Date(startDateFilter.value) : null;
+            const endDate = endDateFilter.value ? new Date(endDateFilter.value) : null;
+
+            return users.filter(user => {
+                // 1. Trainee Name
+                if (traineeName && !user.name.toLowerCase().includes(traineeName)) return false;
+
+                // 2. Trainer Name
+                if (trainerName && (!user.feedback || !user.feedback.trainer_name || !user.feedback.trainer_name.toLowerCase().includes(trainerName))) return false;
+
+                // 4. Insurance Type
+                if (insuranceType !== 'All' && user.insurance_type !== insuranceType) return false;
+
+                // 5. Group
+                if (group && !user.user_group.toLowerCase().includes(group)) return false;
+
+                // 2. Date/Time
+                const createdDate = new Date(user.latest_submission);
+                if (startDate && createdDate < startDate) return false;
+                // Add one day to end date to make the filter inclusive
+                if (endDate) {
+                    const inclusiveEndDate = new Date(endDate);
+                    inclusiveEndDate.setDate(inclusiveEndDate.getDate() + 1);
+                    if (createdDate > inclusiveEndDate) return false;
+                }
+                
+                return true;
+            });
+        }
+
+        async function fetchTurns(userId, user) {
+            feedbackSection.style.display = 'block'; // Show feedback form
             sessionDetailsElement.innerHTML = '<p class="alert alert-info text-center mt-3">กำลังโหลดรายละเอียดบทสนทนา...</p>';
             
+            // 1. Populate Feedback Form
+            populateFeedbackForm(userId, user.feedback);
+
+            // 2. Fetch Turn Details
             const { data: turns, error } = await supabase
                 .from('submissions')
                 .select('*')
@@ -292,36 +402,56 @@
 
             if (error) {
                 sessionDetailsElement.innerHTML = `<p class="alert alert-danger text-center mt-3">❌ ข้อผิดพลาดในการโหลด Turn: ${error.message}</p>`;
-                console.error("Error fetching turns:", error);
                 return;
             }
 
             renderSessionDetails(turns);
         }
 
-        // --- 3. Rendering Functions ---
+        // --- 3. Rendering and Interaction Functions ---
 
         function renderUserList(users) {
             userListElement.innerHTML = '';
             if (users.length === 0) {
-                userListElement.innerHTML = '<p class="alert alert-info">ไม่พบข้อมูลการทำแบบทดสอบที่ตรงตามตัวกรองที่เลือก</p>';
+                userListElement.innerHTML = '<p class="alert alert-warning">ไม่พบข้อมูลการทำแบบทดสอบที่ตรงตามตัวกรองที่เลือก</p>';
                 return;
             }
 
             users.forEach(user => {
                 const card = document.createElement('div');
                 card.className = 'user-card';
+                if (user.feedback) {
+                    card.style.borderLeftColor = '#007bff'; // Blue for reviewed
+                    card.title = `ประเมินโดย: ${user.feedback.trainer_name}`;
+                } else {
+                    card.style.borderLeftColor = '#dc3545'; // Red for not reviewed
+                    card.title = `ยังไม่ได้ประเมิน`;
+                }
+                
                 card.innerHTML = `
                     <div><strong>${user.name}</strong> <span class="card-type">${user.insurance_type}</span></div>
-                    <small>กลุ่ม: ${user.user_group} | วันที่ล่าสุด: ${new Date(user.latest_submission).toLocaleDateString('th-TH')}</small>
+                    <small>กลุ่ม: ${user.user_group}</small>
+                    <small>วันที่ล่าสุด: ${new Date(user.latest_submission).toLocaleDateString('th-TH')}</small>
                 `;
                 card.onclick = () => {
                     document.querySelectorAll('.user-card').forEach(c => c.classList.remove('active'));
                     card.classList.add('active');
-                    fetchTurns(user.user_id, user.name, user.user_group);
+                    fetchTurns(user.user_id, user);
                 };
                 userListElement.appendChild(card);
             });
+        }
+
+        function populateFeedbackForm(userId, feedback) {
+            feedbackUserId.value = userId;
+            trainerNameInput.value = feedback ? feedback.trainer_name || '' : '';
+            overallScoreInput.value = feedback ? feedback.score_section_overall || '' : '';
+            passCriteriaInput.value = feedback ? feedback.pass_criteria || '' : '';
+            trainerCommentsInput.value = feedback ? feedback.trainer_comments || '' : '';
+            
+            // Determine if we need to insert or update
+            saveFeedbackBtn.textContent = feedback ? '📝 อัปเดตการประเมิน' : '✅ บันทึกการประเมิน';
+            feedbackStatus.style.display = 'none';
         }
         
         function getPartName(part) {
@@ -342,11 +472,21 @@
             if (part === 4 && qNum > 10) { 
                 return `S4: ซักประวัติ Q1.F${qNum % 10}`;
             }
-            if (part === 4) return `S4: คำถามหลัก Q1`;
+            if (part === 4) return `S4: คำถามหลัก Q${qNum}`;
             
             return `Q${qNum}`;
         }
 
+        // **Dynamically create audio player on click (Kept from previous version)**
+        function createAudioPlayer(element, url) {
+            if (!url) return;
+            element.innerHTML = '';
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.className = 'audio-player-active';
+            audio.src = url;
+            element.appendChild(audio);
+        }
 
         function renderSessionDetails(turns) {
             sessionDetailsElement.innerHTML = ''; 
@@ -360,52 +500,163 @@
                 const partName = getPartName(turn.part_number);
                 const qDisplay = getQuestionDisplay(turn.part_number, turn.question_number);
                 
-                // **NEW: Customer Audio Handling**
-                const customerAudioUrl = turn.customer_audio_url && turn.customer_audio_url.startsWith('http')
-                    ? turn.customer_audio_url
-                    : null; // ใช้ null เพื่อแยกเคส N/A
-
+                const isCustomerAudioUrl = turn.customer_audio_url && turn.customer_audio_url.startsWith('http');
+                const customerAudioUrl = isCustomerAudioUrl ? turn.customer_audio_url : null;
                 const employeeAudioUrl = turn.audio_url || null;
                 
                 const turnItem = document.createElement('div');
                 turnItem.className = 'turn-item';
                 turnItem.innerHTML = `
                     <div class="turn-header">
-                        [Turn ${index + 1}] ${partName} - ${qDisplay} (ประเภท: ${turn.insurance_type || 'Unknown'})
+                        [Turn ${index + 1}] ${partName} - ${qDisplay}
                     </div>
                     <div>
                         <small><strong>รายละเอียด:</strong> ${turn.question_text || 'ไม่มีรายละเอียด'}</small>
                     </div>
                     <div class="audio-pair mt-3">
+                        
                         <div class="audio-block customer-audio">
                             <label>🔊 เสียงลูกค้า (บริบท/คำถาม)</label>
                             ${customerAudioUrl
-                                ? `<audio controls class="audio-player" src="${customerAudioUrl}"></audio>` 
-                                : `<p class="alert alert-warning small mb-0">ไม่ระบุ URL เสียงลูกค้า (Script/ไม่มีโต้ตอบ/ยังไม่รองรับ)</p>`
+                                ? `<div class="audio-placeholder" data-url="${customerAudioUrl}" data-role="customer">
+                                     ▶️ คลิกเพื่อเล่นเสียงลูกค้า
+                                   </div>`
+                                : `<p class="alert alert-warning small mb-0">ไม่ระบุ URL เสียงลูกค้า</p>`
                             }
                         </div>
+                        
                         <div class="audio-block employee-audio">
                             <label>🎤 เสียงพนักงาน (คำตอบ/Script)</label>
                             ${employeeAudioUrl
-                                ? `<audio controls class="audio-player" src="${employeeAudioUrl}"></audio>` 
+                                ? `<div class="audio-placeholder" data-url="${employeeAudioUrl}" data-role="employee">
+                                     ▶️ คลิกเพื่อเล่นเสียงพนักงาน
+                                   </div>`
                                 : `<p class="alert alert-danger small mb-0">❌ URL เสียงพนักงานไม่พร้อมใช้งาน</p>`
                             }
                         </div>
+                        
                     </div>
                 `;
                 sessionDetailsElement.appendChild(turnItem);
             });
+            
+            document.querySelectorAll('.audio-placeholder').forEach(placeholder => {
+                placeholder.addEventListener('click', function() {
+                    const url = this.getAttribute('data-url');
+                    if (this.querySelector('audio')) return; 
+                    createAudioPlayer(this, url);
+                });
+            });
         }
 
-        // --- 4. Initialization ---
-        
-        // **NEW: Add event listener for the filter**
-        insuranceFilter.addEventListener('change', () => {
-            sessionDetailsElement.innerHTML = '<p class="alert alert-info text-center">กรุณาเลือกชื่อผู้ทำแบบทดสอบจากรายการด้านซ้ายมือ</p>';
-            document.getElementById('sessionHeader').textContent = '🎯 รายละเอียด Turn การโต้ตอบ';
-            fetchUsers();
+        // --- 4. Trainer Feedback Submission ---
+
+        feedbackForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const userId = feedbackUserId.value;
+            const trainee = allUsersData.find(u => u.user_id === userId);
+            
+            if (!trainee) {
+                feedbackStatus.textContent = '❌ ไม่พบข้อมูลผู้ทำแบบทดสอบที่เลือก';
+                feedbackStatus.style.display = 'block';
+                return;
+            }
+
+            const feedbackData = {
+                user_id: userId,
+                trainee_name: trainee.name, // Save for easier reporting
+                trainer_name: trainerNameInput.value.trim(),
+                score_section_overall: overallScoreInput.value.trim(),
+                pass_criteria: passCriteriaInput.value.trim(),
+                trainer_comments: trainerCommentsInput.value.trim(),
+            };
+
+            const existingFeedback = trainee.feedback;
+            let error;
+
+            if (existingFeedback) {
+                // Update existing record
+                const { error: updateError } = await supabase
+                    .from('trainer_feedback')
+                    .update(feedbackData)
+                    .eq('user_id', userId);
+                error = updateError;
+            } else {
+                // Insert new record
+                const { error: insertError } = await supabase
+                    .from('trainer_feedback')
+                    .insert([feedbackData]);
+                error = insertError;
+            }
+
+            feedbackStatus.style.display = 'block';
+            if (error) {
+                feedbackStatus.className = 'mt-3 alert alert-danger';
+                feedbackStatus.textContent = `❌ บันทึกการประเมินไม่สำเร็จ: ${error.message}`;
+            } else {
+                feedbackStatus.className = 'mt-3 alert alert-success';
+                feedbackStatus.textContent = `✅ บันทึกการประเมินสำหรับ ${trainee.name} สำเร็จแล้ว!`;
+                
+                // Refresh the user list to show updated status/filter
+                await fetchUsers();
+                // Find and set active state again
+                document.querySelector(`.user-card.active`)?.classList.remove('active');
+                document.querySelectorAll('.user-card').forEach(c => {
+                    if (c.textContent.includes(trainee.name)) c.classList.add('active');
+                });
+            }
         });
 
+        // --- 5. Report Export (CSV/Excel) ---
+
+        exportReportBtn.addEventListener('click', function() {
+            const filteredUsers = applyFilters(allUsersData);
+            if (filteredUsers.length === 0) {
+                alert("ไม่พบข้อมูลที่ตรงตามตัวกรองสำหรับทำรายงาน.");
+                return;
+            }
+
+            const csvData = [];
+            
+            // Report Header
+            csvData.push([
+                "ชื่อเทรนเนอร์", 
+                "ชื่อพนักงาน", 
+                "แบบประกัน",
+                "กลุ่ม",
+                "วันที่ทำแบบทดสอบ", 
+                "คะแนน/ผลการประเมิน (สรุป)",
+                "เกณฑ์การผ่าน/คะแนนแต่ละช่วง (โดยเทรนเนอร์)",
+                "ความคิดเห็นของเทรนเนอร์ (Feedback)"
+            ]);
+
+            // Report Body
+            filteredUsers.forEach(user => {
+                const fb = user.feedback || {};
+                csvData.push([
+                    fb.trainer_name || 'N/A (ยังไม่ประเมิน)',
+                    user.name,
+                    user.insurance_type,
+                    user.user_group,
+                    new Date(user.latest_submission).toLocaleDateString('th-TH') + ' ' + new Date(user.latest_submission).toLocaleTimeString('th-TH'),
+                    fb.score_section_overall || 'N/A',
+                    fb.pass_criteria || 'N/A',
+                    fb.trainer_comments || 'N/A'
+                ]);
+            });
+
+            // Convert array to CSV string
+            const csvContent = csvData.map(e => e.map(item => `"${item.toString().replace(/"/g, '""')}"`).join(",")).join("\n");
+            
+            // Trigger download using FileSaver (saves as .csv, Excel can open it)
+            const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" }); // Add BOM for Thai compatibility
+            saveAs(blob, `Roleplay_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+        });
+
+        // --- 6. Initialization ---
+
+        applyFilterBtn.addEventListener('click', fetchUsers);
         document.addEventListener('DOMContentLoaded', fetchUsers);
         
     </script>
