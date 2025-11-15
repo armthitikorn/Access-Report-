@@ -380,7 +380,7 @@
             loadingIndicator.style.display = 'none';
         }
 
-        // 🚨 CRITICAL FIX: Robust Date Filtering Logic
+        // 🚨 แก้ไขส่วนนี้เพื่อใช้การเปรียบเทียบวันที่แบบ UTC เพื่อแก้ปัญหา Timezone
         function applyFilters(users) {
             const traineeName = traineeNameFilter.value.toLowerCase();
             const trainerName = trainerNameFilter.value.toLowerCase();
@@ -397,22 +397,24 @@
                 if (insuranceType !== 'All' && user.insurance_type !== insuranceType) return false;
                 if (group && !user.user_group.toLowerCase().includes(group)) return false;
 
-                // 5. Date/Time Filtering (Robust Local Check)
+                // 5. Date/Time Filtering (FIXED: Use UTC Date Interpretation for comparison)
+                
+                // createdDate: Date object ที่ถูกสร้างจาก String เวลาใน Supabase (เป็น UTC Time)
                 const createdDate = new Date(user.latest_submission);
                 
                 if (startDateStr) {
-                    const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
-                    // Force local date interpretation (00:00:00 of the selected day)
-                    const startDate = new Date(startYear, startMonth - 1, startDay); 
-                    
+                    // สร้าง Date Object ของวันที่เริ่มต้น โดยตั้งค่าเป็น UTC Time 00:00:00
+                    const startDate = new Date(startDateStr); 
+                    startDate.setUTCHours(0, 0, 0, 0); // ตั้งเวลาเป็นเที่ยงคืน UTC
+
                     if (createdDate < startDate) return false;
                 }
 
                 if (endDateStr) {
-                    const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
-                    // Force local date interpretation (23:59:59.999 of the selected day)
-                    const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999); 
-                    
+                    // สร้าง Date Object ของวันที่สิ้นสุด โดยตั้งค่าเป็น UTC Time 23:59:59.999
+                    const endDate = new Date(endDateStr);
+                    endDate.setUTCHours(23, 59, 59, 999); // ตั้งเวลาเป็น 23:59:59.999 UTC
+
                     if (createdDate > endDate) return false;
                 }
                 
