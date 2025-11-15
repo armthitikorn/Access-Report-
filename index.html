@@ -257,11 +257,14 @@
             
             <div class="col-3">
                 <h2>👤 ผู้ทำแบบทดสอบ</h2>
-                <div id="loadingIndicator" class="alert alert-info">
+                <div id="loadingIndicator" class="alert alert-info" style="display: none;">
                     กำลังโหลดข้อมูลผู้ทำแบบทดสอบ...
                 </div>
                 <div id="userList">
-                    </div>
+                    <p class="alert alert-info">
+                        กรุณาระบุตัวกรอง (เช่น วันที่) แล้วกด "กรองข้อมูล" เพื่อเริ่มต้น
+                    </p>
+                </div>
             </div>
             
             <div class="col-9">
@@ -330,16 +333,36 @@
         
         let allUsersData = []; 
 
+        // --- Helper Function: Format Date to YYYY-MM-DD ---
+        function formatDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+        
+        // --- Initialization of Default Dates ---
+        function setDefaultDates() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            // Set input values
+            endDateFilter.value = formatDate(today);
+            startDateFilter.value = formatDate(thirtyDaysAgo);
+        }
+
         // --- 2. Data Fetching and Filtering Functions ---
 
         async function fetchUsers() {
             loadingIndicator.style.display = 'block';
-            userListElement.innerHTML = '';
+            userListElement.innerHTML = ''; // Clear the list before loading
             
             // 1. Fetch all submissions
             const { data: allSubmissions, error: subError } = await supabase
                 .from('submissions')
-                .select('user_id, name, user_group, created_at, insurance_type'); 
+                .select('user_id, name, user_group, created_at, insurance_type, audio_url'); 
+                // ดึง audio_url มาด้วยเพื่อความสมบูรณ์ (แม้จะไม่ได้ใช้ในหน้านี้โดยตรง แต่ใช้ใน report)
 
             // 2. Fetch all trainer feedback
             const { data: allFeedback, error: fbError } = await supabase
@@ -348,7 +371,8 @@
             
             if (subError || fbError) {
                 console.error("Error fetching data:", subError || fbError);
-                loadingIndicator.textContent = `❌ ข้อผิดพลาดในการโหลดข้อมูล: โปรดตรวจสอบว่าคุณสร้างตาราง 'trainer_feedback' และคอลัมน์ 'insurance_type' แล้ว`;
+                loadingIndicator.textContent = `❌ ข้อผิดพลาดในการโหลดข้อมูล: โปรดตรวจสอบการเชื่อมต่อ Supabase`;
+                loadingIndicator.style.display = 'block';
                 return;
             }
 
@@ -375,12 +399,12 @@
 
             allUsersData = Object.values(usersMap).sort((a, b) => new Date(b.latest_submission) - new Date(a.latest_submission));
             
-            // Apply current filters
+            // Apply current filters and render
             renderUserList(applyFilters(allUsersData));
             loadingIndicator.style.display = 'none';
         }
 
-        // 🚨 แก้ไขส่วนนี้เพื่อใช้การเปรียบเทียบวันที่แบบ UTC เพื่อแก้ปัญหา Timezone
+        // 🚨 FINAL FIX: ฟังก์ชัน applyFilters (แก้ไข Timezone โดยใช้ Date.UTC)
         function applyFilters(users) {
             const traineeName = traineeNameFilter.value.toLowerCase();
             const trainerName = trainerNameFilter.value.toLowerCase();
@@ -391,7 +415,7 @@
             const endDateStr = endDateFilter.value;     // Expected: YYYY-MM-DD
 
             return users.filter(user => {
-                // 1-4. Other filters remain the same
+                // 1-4. Other filters
                 if (traineeName && !user.name.toLowerCase().includes(traineeName)) return false;
                 if (trainerName && (!user.feedback || !user.feedback.trainer_name || !user.feedback.trainer_name.toLowerCase().includes(trainerName))) return false;
                 if (insuranceType !== 'All' && user.insurance_type !== insuranceType) return false;
@@ -399,22 +423,23 @@
 
                 // 5. Date/Time Filtering (FIXED: Use UTC Date Interpretation for comparison)
                 
-                // createdDate: Date object ที่ถูกสร้างจาก String เวลาใน Supabase (เป็น UTC Time)
                 const createdDate = new Date(user.latest_submission);
                 
                 if (startDateStr) {
-                    // สร้าง Date Object ของวันที่เริ่มต้น โดยตั้งค่าเป็น UTC Time 00:00:00
-                    const startDate = new Date(startDateStr); 
-                    startDate.setUTCHours(0, 0, 0, 0); // ตั้งเวลาเป็นเที่ยงคืน UTC
+                    const [year, month, day] = startDateStr.split('-').map(Number);
+                    // ใช้ Date.UTC() เพื่อสร้างวันที่เริ่มต้น 00:00:00 ใน UTC โดยตรง
+                    const startTimeUTC = Date.UTC(year, month - 1, day, 0, 0, 0, 0); 
+                    const startDate = new Date(startTimeUTC); 
 
                     if (createdDate < startDate) return false;
                 }
 
                 if (endDateStr) {
-                    // สร้าง Date Object ของวันที่สิ้นสุด โดยตั้งค่าเป็น UTC Time 23:59:59.999
-                    const endDate = new Date(endDateStr);
-                    endDate.setUTCHours(23, 59, 59, 999); // ตั้งเวลาเป็น 23:59:59.999 UTC
-
+                    const [year, month, day] = endDateStr.split('-').map(Number);
+                    // ใช้ Date.UTC() เพื่อสร้างวันที่สิ้นสุด 23:59:59.999 ใน UTC โดยตรง
+                    const endTimeUTC = Date.UTC(year, month - 1, day, 23, 59, 59, 999);
+                    const endDate = new Date(endTimeUTC);
+                    
                     if (createdDate > endDate) return false;
                 }
                 
@@ -530,6 +555,7 @@
                 const employeeAudioUrl = turn.audio_url || null;
                 
                 // *** ส่วนเพิ่มเติม: AI Scoring/Comment ***
+                // โค้ดส่วนนี้จะแสดงผล ถ้าคุณเพิ่มคอลัมน์ ai_score และ ai_comment ในตาราง submissions แล้ว
                 const aiFeedbackHtml = (turn.ai_score || turn.ai_comment) 
                     ? `
                         <div class="ai-feedback">
@@ -651,10 +677,15 @@
                 feedbackStatus.className = 'mt-3 alert alert-success';
                 feedbackStatus.textContent = `✅ บันทึกการประเมินสำหรับ ${trainee.name} สำเร็จแล้ว!`;
                 
-                await fetchUsers();
-                document.querySelector(`.user-card.active`)?.classList.remove('active');
+                // ให้อัปเดตเฉพาะ UI/Feedback Status แทนการ fetchUsers() เต็มรูปแบบ
+                // แต่เพื่อความมั่นใจในข้อมูลล่าสุด:
+                await fetchUsers(); 
+                // Restore active state manually after re-rendering user list
                 document.querySelectorAll('.user-card').forEach(c => {
-                    if (c.textContent.includes(trainee.name)) c.classList.add('active');
+                    if (c.textContent.includes(trainee.name) && c.classList.contains('active')) {
+                        // Trigger fetchTurns again to reload feedback data on the details side
+                        c.click(); 
+                    }
                 });
             }
         });
@@ -706,9 +737,12 @@
         });
 
         // --- 6. Initialization ---
-
+        
+        // 🚨 ลบการเรียก fetchUsers() ออกจาก DOMContentLoaded เพื่อหน่วงการโหลด
+        // document.addEventListener('DOMContentLoaded', fetchUsers); 
+        
         applyFilterBtn.addEventListener('click', fetchUsers);
-        document.addEventListener('DOMContentLoaded', fetchUsers);
+        document.addEventListener('DOMContentLoaded', setDefaultDates); // ตั้งค่าวันที่เริ่มต้นเมื่อโหลดหน้า
         
     </script>
 </body>
