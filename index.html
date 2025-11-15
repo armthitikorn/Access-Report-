@@ -80,7 +80,7 @@
         .apply-btn:hover { background-color: #218838; }
         #exportReportBtn {
             background-color: #007bff;
-            margin-left: auto; /* Push to the right */
+            margin-left: auto; 
         }
         #exportReportBtn:hover { background-color: #0056b3; }
 
@@ -159,7 +159,6 @@
         .employee-audio { border-color: #337ab7; background-color: #f5faff; }
 
         /* 5. Audio Player (Button/Placeholder) */
-        /* 🚨 FIX: Make the click area clearly look clickable */
         .audio-placeholder {
             padding: 10px;
             background-color: #e9ecef;
@@ -371,15 +370,21 @@
             loadingIndicator.style.display = 'none';
         }
 
-        // 🚨 CRITICAL FIX: Robust Date Filtering Logic
+        // 🚨 CRITICAL FIX: Robust Date Filtering Logic (Adding Debugging)
         function applyFilters(users) {
             const traineeName = traineeNameFilter.value.toLowerCase();
             const trainerName = trainerNameFilter.value.toLowerCase();
             const insuranceType = insuranceFilter.value;
             const group = groupFilter.value.toLowerCase();
             
-            const startDateStr = startDateFilter.value; // Expected: YYYY-MM-DD
-            const endDateStr = endDateFilter.value;     // Expected: YYYY-MM-DD
+            const startDateStr = startDateFilter.value; 
+            const endDateStr = endDateFilter.value;     
+
+            if (startDateStr || endDateStr) {
+                 console.log("--- START DATE FILTER DEBUG ---");
+                 console.log(`Input Start Date: ${startDateStr || 'N/A'}`);
+                 console.log(`Input End Date: ${endDateStr || 'N/A'}`);
+            }
 
             return users.filter(user => {
                 // 1-4. Other filters remain the same
@@ -389,6 +394,7 @@
                 if (group && !user.user_group.toLowerCase().includes(group)) return false;
 
                 // 5. Date/Time Filtering (Robust Local Check)
+                // user.latest_submission is an ISO UTC string from Supabase (e.g., '2025-11-15T07:00:00.000Z')
                 const createdDate = new Date(user.latest_submission);
                 
                 if (startDateStr) {
@@ -396,6 +402,9 @@
                     // Force local date interpretation (00:00:00 of the selected day)
                     const startDate = new Date(startYear, startMonth - 1, startDay); 
                     
+                    if (startDateStr || endDateStr) {
+                         console.log(`[${user.name}] Check: Created Date (${createdDate.toLocaleString()}) >= Start Date (${startDate.toLocaleString()}) -> ${createdDate >= startDate}`);
+                    }
                     if (createdDate < startDate) return false;
                 }
 
@@ -404,6 +413,9 @@
                     // Force local date interpretation (23:59:59.999 of the selected day)
                     const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999); 
                     
+                    if (startDateStr || endDateStr) {
+                         console.log(`[${user.name}] Check: Created Date (${createdDate.toLocaleString()}) <= End Date (${endDate.toLocaleString()}) -> ${createdDate <= endDate}`);
+                    }
                     if (createdDate > endDate) return false;
                 }
                 
