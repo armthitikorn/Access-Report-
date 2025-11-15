@@ -290,7 +290,7 @@
         
     </div>
 
-    <script type="module">
+<script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
         
         // --- 1. Supabase Configuration ---
@@ -334,7 +334,7 @@
 
             // 2. Fetch all trainer feedback
             const { data: allFeedback, error: fbError } = await supabase
-                .from('trainer_feedback') // ต้องสร้างตารางนี้ใน Supabase
+                .from('trainer_feedback') 
                 .select('*');
             
             if (subError || fbError) {
@@ -371,43 +371,39 @@
             loadingIndicator.style.display = 'none';
         }
 
+        // 🚨 CRITICAL FIX: Robust Date Filtering Logic
         function applyFilters(users) {
             const traineeName = traineeNameFilter.value.toLowerCase();
             const trainerName = trainerNameFilter.value.toLowerCase();
             const insuranceType = insuranceFilter.value;
             const group = groupFilter.value.toLowerCase();
             
-            // 🚨 FIX: ใช้การเปรียบเทียบวันที่อย่างปลอดภัย
-            const startDateStr = startDateFilter.value;
-            const endDateStr = endDateFilter.value;
+            const startDateStr = startDateFilter.value; // Expected: YYYY-MM-DD
+            const endDateStr = endDateFilter.value;     // Expected: YYYY-MM-DD
 
             return users.filter(user => {
-                // 1. Trainee Name
+                // 1-4. Other filters remain the same
                 if (traineeName && !user.name.toLowerCase().includes(traineeName)) return false;
-
-                // 2. Trainer Name
                 if (trainerName && (!user.feedback || !user.feedback.trainer_name || !user.feedback.trainer_name.toLowerCase().includes(trainerName))) return false;
-
-                // 3. Insurance Type
                 if (insuranceType !== 'All' && user.insurance_type !== insuranceType) return false;
-
-                // 4. Group
                 if (group && !user.user_group.toLowerCase().includes(group)) return false;
 
-                // 5. Date/Time Filtering (Robust Check)
+                // 5. Date/Time Filtering (Robust Local Check)
                 const createdDate = new Date(user.latest_submission);
                 
                 if (startDateStr) {
-                    // Create Date object for start date at the beginning of the day (00:00:00)
-                    const startDate = new Date(startDateStr);
-                    startDate.setHours(0, 0, 0, 0); 
+                    const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+                    // Force local date interpretation (00:00:00 of the selected day)
+                    const startDate = new Date(startYear, startMonth - 1, startDay); 
+                    
                     if (createdDate < startDate) return false;
                 }
 
                 if (endDateStr) {
-                    // Create Date object for end date at the end of the day (23:59:59)
-                    const endDate = new Date(endDateStr);
-                    endDate.setHours(23, 59, 59, 999);
+                    const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+                    // Force local date interpretation (23:59:59.999 of the selected day)
+                    const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999); 
+                    
                     if (createdDate > endDate) return false;
                 }
                 
@@ -472,7 +468,6 @@
             });
         }
         
-        // ... (getPartName และ getQuestionDisplay functions - โค้ดเดิม) ...
         function getPartName(part) {
             switch (part) {
                 case 1: return "ช่วงที่ 1: เปิดตัว/โต้ตอบต้นสาย";
@@ -496,7 +491,6 @@
             return `Q${qNum}`;
         }
         
-        // Dynamically create audio player on click
         function createAudioPlayer(element, url) {
             if (!url) return;
             element.innerHTML = '';
@@ -519,7 +513,7 @@
                 const partName = getPartName(turn.part_number);
                 const qDisplay = getQuestionDisplay(turn.part_number, turn.question_number);
                 
-                // 🚨 FIX: ตรวจสอบ URL ต้องขึ้นต้นด้วย 'http' เพื่อแยกออกจากข้อความ Placeholder ที่มาจาก Simulator
+                // ตรวจสอบ URL ต้องขึ้นต้นด้วย 'http' เพื่อแยกออกจากข้อความ Placeholder
                 const isCustomerAudioUrl = turn.customer_audio_url && turn.customer_audio_url.startsWith('http');
                 const customerAudioUrl = isCustomerAudioUrl ? turn.customer_audio_url : null;
                 const employeeAudioUrl = turn.audio_url || null;
@@ -541,7 +535,6 @@
                                 ? `<div class="audio-placeholder" data-url="${customerAudioUrl}" data-role="customer">
                                      ▶️ คลิกเพื่อเล่นเสียงลูกค้า
                                    </div>`
-                                // 🚨 FIX: แสดง URL/ข้อความ Placeholder ที่มาจาก Simulator หากไม่ใช่ URL จริง
                                 : `<p class="alert alert-warning small mb-0">ไม่ระบุ URL เสียงลูกค้า (ข้อความ: ${turn.customer_audio_url || 'N/A'})</p>`
                             }
                         </div>
@@ -561,12 +554,10 @@
                 sessionDetailsElement.appendChild(turnItem);
             });
             
-            // Attach listener to placeholders after rendering all turns
             document.querySelectorAll('.audio-placeholder').forEach(placeholder => {
                 placeholder.addEventListener('click', function() {
                     const url = this.getAttribute('data-url');
                     
-                    // Only create the player if it hasn't been created and URL is valid
                     if (url && !this.querySelector('audio')) { 
                         createAudioPlayer(this, url);
                     }
@@ -682,7 +673,7 @@
             const csvContent = csvData.map(e => e.map(item => `"${item.toString().replace(/"/g, '""')}"`).join(",")).join("\n");
             
             // Trigger download using FileSaver 
-            const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" }); // Add BOM for Thai compatibility
+            const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" }); 
             saveAs(blob, `Roleplay_Report_${new Date().toISOString().slice(0, 10)}.csv`);
         });
 
