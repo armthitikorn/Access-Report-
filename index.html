@@ -341,7 +341,7 @@
             return `${y}-${m}-${d}`;
         }
         
-        // --- Initialization of Default Dates ---
+        // --- Initialization of Default Dates (30 days back to today) ---
         function setDefaultDates() {
             const today = new Date();
             const thirtyDaysAgo = new Date();
@@ -356,13 +356,12 @@
 
         async function fetchUsers() {
             loadingIndicator.style.display = 'block';
-            userListElement.innerHTML = ''; // Clear the list before loading
+            userListElement.innerHTML = '';
             
             // 1. Fetch all submissions
             const { data: allSubmissions, error: subError } = await supabase
                 .from('submissions')
-                .select('user_id, name, user_group, created_at, insurance_type, audio_url'); 
-                // ดึง audio_url มาด้วยเพื่อความสมบูรณ์ (แม้จะไม่ได้ใช้ในหน้านี้โดยตรง แต่ใช้ใน report)
+                .select('user_id, name, user_group, created_at, insurance_type'); 
 
             // 2. Fetch all trainer feedback
             const { data: allFeedback, error: fbError } = await supabase
@@ -371,7 +370,7 @@
             
             if (subError || fbError) {
                 console.error("Error fetching data:", subError || fbError);
-                loadingIndicator.textContent = `❌ ข้อผิดพลาดในการโหลดข้อมูล: โปรดตรวจสอบการเชื่อมต่อ Supabase`;
+                loadingIndicator.textContent = `❌ ข้อผิดพลาดในการโหลดข้อมูล: โปรดตรวจสอบว่าคุณสร้างตาราง 'trainer_feedback' และคอลัมน์ 'insurance_type' แล้ว`;
                 loadingIndicator.style.display = 'block';
                 return;
             }
@@ -399,12 +398,12 @@
 
             allUsersData = Object.values(usersMap).sort((a, b) => new Date(b.latest_submission) - new Date(a.latest_submission));
             
-            // Apply current filters and render
+            // Apply current filters
             renderUserList(applyFilters(allUsersData));
             loadingIndicator.style.display = 'none';
         }
 
-        // 🚨 FINAL FIX: ฟังก์ชัน applyFilters (แก้ไข Timezone โดยใช้ Date.UTC)
+        // 🚨 Final Fix: ฟังก์ชัน applyFilters (แก้ไข Timezone โดยใช้ Date.UTC)
         function applyFilters(users) {
             const traineeName = traineeNameFilter.value.toLowerCase();
             const trainerName = trainerNameFilter.value.toLowerCase();
@@ -415,7 +414,7 @@
             const endDateStr = endDateFilter.value;     // Expected: YYYY-MM-DD
 
             return users.filter(user => {
-                // 1-4. Other filters
+                // 1-4. Other filters remain the same
                 if (traineeName && !user.name.toLowerCase().includes(traineeName)) return false;
                 if (trainerName && (!user.feedback || !user.feedback.trainer_name || !user.feedback.trainer_name.toLowerCase().includes(trainerName))) return false;
                 if (insuranceType !== 'All' && user.insurance_type !== insuranceType) return false;
@@ -423,6 +422,7 @@
 
                 // 5. Date/Time Filtering (FIXED: Use UTC Date Interpretation for comparison)
                 
+                // createdDate: Date object ที่ถูกสร้างจาก String เวลาใน Supabase (เป็น UTC Time)
                 const createdDate = new Date(user.latest_submission);
                 
                 if (startDateStr) {
@@ -555,7 +555,6 @@
                 const employeeAudioUrl = turn.audio_url || null;
                 
                 // *** ส่วนเพิ่มเติม: AI Scoring/Comment ***
-                // โค้ดส่วนนี้จะแสดงผล ถ้าคุณเพิ่มคอลัมน์ ai_score และ ai_comment ในตาราง submissions แล้ว
                 const aiFeedbackHtml = (turn.ai_score || turn.ai_comment) 
                     ? `
                         <div class="ai-feedback">
@@ -586,8 +585,11 @@
                         <div class="audio-block customer-audio">
                             <label>🔊 เสียงลูกค้า (บริบท/คำถาม)</label>
                             ${customerAudioUrl
-                                ? `<div class="audio-placeholder" data-url="${customerAudioUrl}" data-role="customer">
-                                     ▶️ คลิกเพื่อเล่นเสียงลูกค้า
+                                ? `<div style="display: flex; gap: 5px; align-items: center;">
+                                     <div class="audio-placeholder" data-url="${customerAudioUrl}" data-role="customer" style="flex-grow: 1;">
+                                         ▶️ คลิกเพื่อเล่นเสียงลูกค้า
+                                     </div>
+                                     <a href="${customerAudioUrl}" download="Customer_P${turn.part_number}_Q${turn.question_number}.webm" title="ดาวน์โหลดไฟล์เสียงลูกค้า" style="font-size: 1.5em; text-decoration: none; color: #5cb85c;">⬇️</a>
                                    </div>`
                                 : `<p class="alert alert-warning small mb-0">ไม่ระบุ URL เสียงลูกค้า (ข้อความ: ${turn.customer_audio_url || 'N/A'})</p>`
                             }
@@ -596,8 +598,11 @@
                         <div class="audio-block employee-audio">
                             <label>🎤 เสียงพนักงาน (คำตอบ/Script)</label>
                             ${employeeAudioUrl
-                                ? `<div class="audio-placeholder" data-url="${employeeAudioUrl}" data-role="employee">
-                                     ▶️ คลิกเพื่อเล่นเสียงพนักงาน
+                                ? `<div style="display: flex; gap: 5px; align-items: center;">
+                                     <div class="audio-placeholder" data-url="${employeeAudioUrl}" data-role="employee" style="flex-grow: 1;">
+                                         ▶️ คลิกเพื่อเล่นเสียงพนักงาน
+                                     </div>
+                                     <a href="${employeeAudioUrl}" download="Employee_P${turn.part_number}_Q${turn.question_number}.webm" title="ดาวน์โหลดไฟล์เสียงพนักงาน" style="font-size: 1.5em; text-decoration: none; color: #337ab7;">⬇️</a>
                                    </div>`
                                 : `<p class="alert alert-danger small mb-0">❌ URL เสียงพนักงานไม่พร้อมใช้งาน</p>`
                             }
@@ -677,15 +682,10 @@
                 feedbackStatus.className = 'mt-3 alert alert-success';
                 feedbackStatus.textContent = `✅ บันทึกการประเมินสำหรับ ${trainee.name} สำเร็จแล้ว!`;
                 
-                // ให้อัปเดตเฉพาะ UI/Feedback Status แทนการ fetchUsers() เต็มรูปแบบ
-                // แต่เพื่อความมั่นใจในข้อมูลล่าสุด:
-                await fetchUsers(); 
-                // Restore active state manually after re-rendering user list
+                await fetchUsers();
+                document.querySelector(`.user-card.active`)?.classList.remove('active');
                 document.querySelectorAll('.user-card').forEach(c => {
-                    if (c.textContent.includes(trainee.name) && c.classList.contains('active')) {
-                        // Trigger fetchTurns again to reload feedback data on the details side
-                        c.click(); 
-                    }
+                    if (c.textContent.includes(trainee.name)) c.classList.add('active');
                 });
             }
         });
@@ -737,12 +737,11 @@
         });
 
         // --- 6. Initialization ---
-        
-        // 🚨 ลบการเรียก fetchUsers() ออกจาก DOMContentLoaded เพื่อหน่วงการโหลด
-        // document.addEventListener('DOMContentLoaded', fetchUsers); 
-        
+
         applyFilterBtn.addEventListener('click', fetchUsers);
-        document.addEventListener('DOMContentLoaded', setDefaultDates); // ตั้งค่าวันที่เริ่มต้นเมื่อโหลดหน้า
+        // 🚨 แก้ไข: ตั้งค่า Default Dates และหน่วงการโหลดข้อมูล
+        document.addEventListener('DOMContentLoaded', setDefaultDates); 
+        // ลบ document.addEventListener('DOMContentLoaded', fetchUsers); ออก
         
     </script>
 </body>
