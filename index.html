@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
-    <title>Dashboard: Roleplay Submissions Analysis</title>
+    <title>Dashboard: Roleplay Submissions Analysis (Multi-Product)</title>
     
     <script type="module" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"></script>
 
@@ -38,7 +38,30 @@
             margin-top: 20px;
         }
         
-        /* 2. User List (Sidebar Style) */
+        /* 2. Controls & Filters */
+        .filter-control {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f8f8f8;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .filter-control label {
+            font-weight: bold;
+            color: #555;
+        }
+        .filter-control select {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            min-width: 200px;
+        }
+
+        /* 3. User List (Sidebar Style) */
         #userList {
             max-height: 70vh;
             overflow-y: auto;
@@ -64,8 +87,17 @@
             font-weight: bold;
             box-shadow: 0 0 10px rgba(0, 123, 255, 0.2);
         }
+        .card-type {
+            display: inline-block;
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background-color: #d9534f;
+            color: white;
+            margin-left: 10px;
+        }
 
-        /* 3. Session Details */
+        /* 4. Session Details */
         #sessionDetails {
             padding-left: 25px;
             min-height: 500px; 
@@ -103,7 +135,7 @@
         .customer-audio { border-color: #5cb85c; background-color: #f0fff0; }
         .employee-audio { border-color: #337ab7; background-color: #f5faff; }
 
-        /* 4. Layout (Flexbox) */
+        /* 5. Layout (Flexbox) */
         .dashboard-layout {
             display: flex;
             gap: 20px;
@@ -111,7 +143,7 @@
         .col-3 { flex: 0 0 300px; } /* User List fixed width */
         .col-9 { flex: 1; } 
 
-        /* 5. Utility */
+        /* 6. Utility */
         .text-center { text-align: center; }
         .alert {
             padding: 15px;
@@ -123,6 +155,11 @@
             color: #0c5460;
             background-color: #d1ecf1;
             border-color: #bee5eb;
+        }
+        .alert-warning {
+            color: #856404;
+            background-color: #fff3cd;
+            border-color: #ffeeba;
         }
         .mt-3 { margin-top: 1rem; }
 
@@ -138,8 +175,18 @@
 <body>
     
     <div class="container-box">
-        <h1>Dashboard: ผลการจำลอง Roleplay (Supabase)</h1>
+        <h1>Dashboard: ผลการจำลอง Roleplay (Multi-Product)</h1>
         
+        <div class="filter-control">
+            <label for="insuranceFilter">กรองตามประเภทประกัน:</label>
+            <select id="insuranceFilter">
+                <option value="All">--- แสดงทั้งหมด ---</option>
+                <option value="Health">ประกันสุขภาพ</option>
+                <option value="Life">ประกันชีวิต</option>
+                <option value="Retirement">ประกันบำนาญ (Retirement)</option>
+            </select>
+        </div>
+
         <div class="dashboard-layout">
             
             <div class="col-3">
@@ -155,7 +202,7 @@
                 <h2 id="sessionHeader">🎯 รายละเอียด Turn การโต้ตอบ</h2>
                 <div id="sessionDetails">
                     <p class="alert alert-info text-center">
-                        กรุณาเลือกชื่อผู้ทำแบบทดสอบจากรายการด้านซ้ายมือเพื่อแสดงรายละเอียดบทสนทนา
+                        กรุณาเลือกประเภทประกันและชื่อผู้ทำแบบทดสอบจากรายการด้านซ้ายมือเพื่อแสดงรายละเอียดบทสนทนา
                     </p>
                     </div>
             </div>
@@ -167,8 +214,7 @@
     <script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
         
-        // --- 1. Supabase Configuration (นำมาจาก index1.html/index3.html) ---
-        // ใช้ URL และ Key เดียวกันสำหรับทั้งสองแบบทดสอบ เนื่องจากบันทึกในตารางเดียวกัน
+        // --- 1. Supabase Configuration (ใช้ URL และ Key เดียวกัน) ---
         const supabaseUrl = 'https://wzwyotzzxycqfwercakh.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6d3lvdHp6eHljcWZ3ZXJjYWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwNTg3MTMsImV4cCI6MjA3MjYzNDcxM30.lgiAf9oBUqsaWGb3u_80wuoKAODQHE_lIBxpGumhrno'; 
         const supabase = createClient(supabaseUrl, supabaseKey);
@@ -176,20 +222,31 @@
         const userListElement = document.getElementById('userList');
         const sessionDetailsElement = document.getElementById('sessionDetails');
         const loadingIndicator = document.getElementById('loadingIndicator');
+        const insuranceFilter = document.getElementById('insuranceFilter');
 
         // --- 2. Data Fetching Functions ---
 
         /**
-         * Fetch all unique users and their latest submission data.
-         * Group by user_id and select the max created_at for sorting/overview.
+         * Fetch all unique users and their latest submission data based on filter.
          */
         async function fetchUsers() {
             loadingIndicator.style.display = 'block';
+            userListElement.innerHTML = '';
             
-            // 1. Fetch all submission records
-            const { data: allSubmissions, error } = await supabase
+            const filterValue = insuranceFilter.value;
+
+            let query = supabase
                 .from('submissions')
-                .select('user_id, name, user_group, created_at');
+                // ดึงข้อมูลประเภทประกันมาใช้ด้วย
+                .select('user_id, name, user_group, created_at, insurance_type'); 
+
+            // **NEW: Filtering Logic**
+            if (filterValue && filterValue !== 'All') {
+                query = query.eq('insurance_type', filterValue);
+            }
+            // ------------------------
+
+            const { data: allSubmissions, error } = await query;
 
             if (error) {
                 console.error("Error fetching submissions:", error);
@@ -200,18 +257,15 @@
             // 2. Group submissions by user_id and find the latest submission time
             const usersMap = {};
             allSubmissions.forEach(submission => {
-                const { user_id, name, user_group, created_at } = submission;
+                const { user_id, name, user_group, created_at, insurance_type } = submission;
                 
                 if (!usersMap[user_id] || new Date(created_at) > new Date(usersMap[user_id].latest_submission)) {
-                    // Assume the last part (Part 5: Registration) is the marker of a completed test (approx)
-                    const isCompleted = submission.part_number === 5; 
-                    
                     usersMap[user_id] = {
                         user_id,
                         name: name || 'Anon User',
                         user_group: user_group || 'N/A',
                         latest_submission: created_at,
-                        is_completed: isCompleted // Simple marker based on Part 5 submission
+                        insurance_type: insurance_type || 'Unknown' // NEW: Store insurance type
                     };
                 }
             });
@@ -229,7 +283,6 @@
             document.getElementById('sessionHeader').textContent = `🎯 รายละเอียดบทสนทนา: ${userName} (${userGroup})`;
             sessionDetailsElement.innerHTML = '<p class="alert alert-info text-center mt-3">กำลังโหลดรายละเอียดบทสนทนา...</p>';
             
-            // Query for all turns belonging to the selected user, ordered by part and question number
             const { data: turns, error } = await supabase
                 .from('submissions')
                 .select('*')
@@ -251,7 +304,7 @@
         function renderUserList(users) {
             userListElement.innerHTML = '';
             if (users.length === 0) {
-                userListElement.innerHTML = '<p class="alert alert-info">ไม่พบข้อมูลการทำแบบทดสอบในตาราง submissions.</p>';
+                userListElement.innerHTML = '<p class="alert alert-info">ไม่พบข้อมูลการทำแบบทดสอบที่ตรงตามตัวกรองที่เลือก</p>';
                 return;
             }
 
@@ -259,15 +312,12 @@
                 const card = document.createElement('div');
                 card.className = 'user-card';
                 card.innerHTML = `
-                    <div><strong>${user.name}</strong></div>
+                    <div><strong>${user.name}</strong> <span class="card-type">${user.insurance_type}</span></div>
                     <small>กลุ่ม: ${user.user_group} | วันที่ล่าสุด: ${new Date(user.latest_submission).toLocaleDateString('th-TH')}</small>
                 `;
                 card.onclick = () => {
-                    // Highlight selected user
                     document.querySelectorAll('.user-card').forEach(c => c.classList.remove('active'));
                     card.classList.add('active');
-                    
-                    // Fetch and display turns
                     fetchTurns(user.user_id, user.name, user.user_group);
                 };
                 userListElement.appendChild(card);
@@ -289,7 +339,7 @@
         function getQuestionDisplay(part, qNum) {
             if (part === 15) return `S1.5 Pitch`;
             if (part === 3 && qNum === 0) return `S3: Script ปิดการขาย`;
-            if (part === 4 && qNum > 10) { // For S4 follow-up (e.g., Q11, Q12...)
+            if (part === 4 && qNum > 10) { 
                 return `S4: ซักประวัติ Q1.F${qNum % 10}`;
             }
             if (part === 4) return `S4: คำถามหลัก Q1`;
@@ -307,23 +357,21 @@
             }
 
             turns.forEach((turn, index) => {
-                // Determine Turn/Question Display
                 const partName = getPartName(turn.part_number);
                 const qDisplay = getQuestionDisplay(turn.part_number, turn.question_number);
                 
-                // Determine Customer Audio URL (fallback to N/A text)
+                // **NEW: Customer Audio Handling**
                 const customerAudioUrl = turn.customer_audio_url && turn.customer_audio_url.startsWith('http')
                     ? turn.customer_audio_url
-                    : 'N/A';
-                    
-                // Determine Employee Audio URL
-                const employeeAudioUrl = turn.audio_url || 'N/A';
+                    : null; // ใช้ null เพื่อแยกเคส N/A
+
+                const employeeAudioUrl = turn.audio_url || null;
                 
                 const turnItem = document.createElement('div');
                 turnItem.className = 'turn-item';
                 turnItem.innerHTML = `
                     <div class="turn-header">
-                        [Turn ${index + 1}] ${partName} - ${qDisplay}
+                        [Turn ${index + 1}] ${partName} - ${qDisplay} (ประเภท: ${turn.insurance_type || 'Unknown'})
                     </div>
                     <div>
                         <small><strong>รายละเอียด:</strong> ${turn.question_text || 'ไม่มีรายละเอียด'}</small>
@@ -331,16 +379,16 @@
                     <div class="audio-pair mt-3">
                         <div class="audio-block customer-audio">
                             <label>🔊 เสียงลูกค้า (บริบท/คำถาม)</label>
-                            ${customerAudioUrl !== 'N/A' 
+                            ${customerAudioUrl
                                 ? `<audio controls class="audio-player" src="${customerAudioUrl}"></audio>` 
-                                : `<p class="text-danger small">ไม่ระบุ URL เสียงลูกค้า (Script/ไม่มีโต้ตอบ)</p>`
+                                : `<p class="alert alert-warning small mb-0">ไม่ระบุ URL เสียงลูกค้า (Script/ไม่มีโต้ตอบ/ยังไม่รองรับ)</p>`
                             }
                         </div>
                         <div class="audio-block employee-audio">
                             <label>🎤 เสียงพนักงาน (คำตอบ/Script)</label>
-                            ${employeeAudioUrl !== 'N/A' 
+                            ${employeeAudioUrl
                                 ? `<audio controls class="audio-player" src="${employeeAudioUrl}"></audio>` 
-                                : `<p class="text-danger small">❌ URL เสียงพนักงานไม่พร้อมใช้งาน</p>`
+                                : `<p class="alert alert-danger small mb-0">❌ URL เสียงพนักงานไม่พร้อมใช้งาน</p>`
                             }
                         </div>
                     </div>
@@ -350,6 +398,13 @@
         }
 
         // --- 4. Initialization ---
+        
+        // **NEW: Add event listener for the filter**
+        insuranceFilter.addEventListener('change', () => {
+            sessionDetailsElement.innerHTML = '<p class="alert alert-info text-center">กรุณาเลือกชื่อผู้ทำแบบทดสอบจากรายการด้านซ้ายมือ</p>';
+            document.getElementById('sessionHeader').textContent = '🎯 รายละเอียด Turn การโต้ตอบ';
+            fetchUsers();
+        });
 
         document.addEventListener('DOMContentLoaded', fetchUsers);
         
