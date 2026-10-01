@@ -552,6 +552,8 @@
         }
 
         function renderSessionDetails(turns) {
+            // ข้ามแถวเริ่มต้นของหน้า Speak (Voice HD - SETUP) ที่ไม่มีเสียง
+            turns = (turns || []).filter(t => t.insurance_type !== 'Voice HD - SETUP');
             sessionDetailsElement.innerHTML = ''; 
             
             if (turns.length === 0) {
@@ -560,8 +562,10 @@
             }
 
             turns.forEach((turn, index) => {
-                const partName = getPartName(turn.part_number);
-                const qDisplay = getQuestionDisplay(turn.part_number, turn.question_number);
+                // หน้า Speak (Voice HD) เก็บเลขข้อไว้ใน part_number และชื่อ Part ไว้ใน insurance_type
+                const isVoice = (turn.insurance_type || '').startsWith('Voice HD');
+                const partName = isVoice ? turn.insurance_type : getPartName(turn.part_number);
+                const qDisplay = isVoice ? `ข้อที่ ${turn.part_number}` : getQuestionDisplay(turn.part_number, turn.question_number);
                 
                 // ตรวจสอบ URL ต้องขึ้นต้นด้วย 'http' เพื่อแยกออกจากข้อความ Placeholder
                 const isCustomerAudioUrl = turn.customer_audio_url && turn.customer_audio_url.startsWith('http');
@@ -624,6 +628,8 @@
                         
                     </div>
                 `;
+                // Speak ไม่มีเสียงลูกค้า (มีแต่ข้อความคำถาม) จึงซ่อนกล่องเสียงลูกค้า
+                if (isVoice) { const c = turnItem.querySelector('.customer-audio'); if (c) c.remove(); }
                 sessionDetailsElement.appendChild(turnItem);
             });
             
