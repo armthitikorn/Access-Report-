@@ -94,7 +94,8 @@
     });
 
     // แถวจากหน้า Speak (Voice HD) มี insurance_type ขึ้นต้นด้วย "Voice HD" ส่วนแชทบอทเก็บชื่อแบบประกัน
-    const isSpeakRow = r => (r.insurance_type || '').startsWith('Voice HD');
+    const isSpeakRow = r => /voice\s*hd/i.test(r.insurance_type || '');
+    const speakPartOf = r => { const m = /part\s*(\d+)/i.exec(r.insurance_type || ''); return m ? parseInt(m[1], 10) : null; };
 
     const MODES = {
         chat: {
@@ -116,8 +117,8 @@
                 { key: 'P2', part: 2, name: 'Part 2', short: 'P2' },
                 { key: 'P3', part: 3, name: 'Part 3', short: 'P3' }
             ],
-            belongs: r => isSpeakRow(r),
-            match: (r, s) => (r.insurance_type || '') === `Voice HD - Part ${s.part}`
+            belongs: r => isSpeakRow(r) && !/setup/i.test(r.insurance_type || ''),
+            match: (r, s) => speakPartOf(r) === s.part
         }
     };
 
@@ -136,6 +137,7 @@
                 .from('submissions')
                 .select('user_id, name, created_at, insurance_type')
                 .not('audio_url', 'is', null)
+                .neq('audio_url', '')
                 .order('created_at', { ascending: false })
                 .range(from, from + 999);
             if (res.error) { error = res.error; break; }
@@ -160,6 +162,11 @@
         });
         allSubmissions = Array.from(map.values());
         renderList(allSubmissions);
+        if (mode === 'speak' && allSubmissions.length === 0) {
+            const types = [...new Set(allRows.map(r => r.insurance_type || '(ว่าง)'))].slice(0, 12).join(' | ');
+            document.getElementById('userList').innerHTML =
+                `<div style="padding:15px; color:#b45309; font-size:0.85rem;">ไม่พบแถวของ Speak ที่มีไฟล์เสียง<br>ค่า insurance_type ที่พบในตาราง: ${types}</div>`;
+        }
     }
 
     window.setMode = (m) => {
@@ -236,16 +243,20 @@
         const sectionsContainer = document.getElementById('audioSections');
         sectionsContainer.innerHTML = '<div style="text-align:center; padding: 20px;">🔄 กำลังโหลดไฟล์เสียงทั้งหมด กรุณารอสักครู่...</div>';
 
-        // ดึงลิงก์เสียงจากตาราง submissions_agent (ไม่ต้องพึ่งสิทธิ์ list ของ Storage)
+        // ดึงลิงก์เสียงจากตาราง submissions (ไม่ต้องพึ่งสิทธิ์ list ของ Storage)
         const { data: rowsAll, error: rowsErr } = await supabase
             .from('submissions')
             .select('part_number, question_number, question_text, audio_url, insurance_type, created_at')
             .eq('user_id', emp.user_id)
             .not('audio_url', 'is', null)
+                .neq('audio_url', '')
             .order('part_number', { ascending: true })
             .order('created_at', { ascending: true });
         if (rowsErr) console.error('❌ โหลดข้อมูลเสียงไม่สำเร็จ:', rowsErr.message);
         const rows = (rowsAll || []).filter(cfg.belongs);
+        if (mode === 'speak' && rows.length === 0 && rowsAll && rowsAll.length > 0) {
+            console.warn('แถวของผู้ใช้นี้ไม่ตรงเงื่อนไข Speak:', [...new Set(rowsAll.map(r => r.insurance_type))]);
+        }
 
         let html = '';
         for (const s of cfg.steps) {
