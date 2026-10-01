@@ -308,9 +308,8 @@
         // --- 1. Supabase Configuration ---
         const supabaseUrl = 'https://wzwyotzzxycqfwercakh.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6d3lvdHp6eHljcWZ3ZXJjYWtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwNTg3MTMsImV4cCI6MjA3MjYzNDcxM30.lgiAf9oBUqsaWGb3u_80wuoKAODQHE_lIBxpGumhrno'; 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-});
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
         // --- DOM Elements ---
         const userListElement = document.getElementById('userList');
         const sessionDetailsElement = document.getElementById('sessionDetails');
@@ -355,14 +354,28 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 
         // --- 2. Data Fetching and Filtering Functions ---
 
+        // Supabase คืนข้อมูลสูงสุด 1,000 แถวต่อคำขอ ตารางนี้มีหลายหมื่นแถว จึงดึงทีละหน้า (เรียงใหม่ไปเก่า) จนครบ
+        async function fetchAllSubmissions() {
+            const rows = [];
+            for (let from = 0; ; from += 1000) {
+                const { data, error } = await supabase
+                    .from('submissions')
+                    .select('user_id, name, user_group, created_at, insurance_type')
+                    .order('created_at', { ascending: false })
+                    .range(from, from + 999);
+                if (error) return { data: null, error };
+                rows.push(...data);
+                if (data.length < 1000) break;
+            }
+            return { data: rows, error: null };
+        }
+
         async function fetchUsers() {
             loadingIndicator.style.display = 'block';
             userListElement.innerHTML = '';
             
             // 1. Fetch all submissions
-            const { data: allSubmissions, error: subError } = await supabase
-                .from('submissions')
-                .select('user_id, name, user_group, created_at, insurance_type'); 
+            const { data: allSubmissions, error: subError } = await fetchAllSubmissions();
 
             // 2. Fetch all trainer feedback
             const { data: allFeedback, error: fbError } = await supabase
